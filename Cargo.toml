@@ -1,0 +1,31 @@
+[package]
+name = "lisensor"
+version = "0.1.0"
+edition = "2024"
+description = "Tool to automatically add, check, and fix license notices in the source files"
+license = "MIT"
+repository = "https://github.com/Pistonite/lisensor"
+authors = ["Pistonight <pistonknight@outlook.com>"]
+keywords = ["license", "copyright", "header", "notice", "cli"]
+categories = ["development-tools", "development-tools::build-utils"]
+exclude = [
+    ".github/**/*",
+    "Taskfile.yml",
+    "Lisensor.toml",
+]
+
+
+[dependencies]
+chrono = "0.4.41"
+serde = "1"
+
+[dependencies.cu]
+package = "pistonite-cu"
+version = "0.4.0"
+features = ["cli", "fs", "coroutine-heavy", "toml"]
+# path = "../cu/packages/copper"
+
+[package.metadata.binstall.signing]
+algorithm = "minisign"
+pubkey = "RWThJQKJaXayoZBe0YV5LV4KFkQwcqQ6Fg9dJBz18JnpHGdf/cHUyKs+"
+

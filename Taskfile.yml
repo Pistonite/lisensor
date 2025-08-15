@@ -1,0 +1,31 @@
+version: '3'
+
+includes:
+  cargo:
+    taskfile: mono-dev/task/cargo.yaml
+    optional: true
+    interal: true
+
+tasks:
+  install:
+    - rm -rf mono-dev
+    - git clone https://github.com/Pistonight/mono-dev --depth 1
+
+  check:
+    - task: cargo:clippy-all
+    - task: cargo:fmt-check
+    - cargo run
+
+  test:
+    - cargo test
+    - task: test-inline-cmd
+
+  test-inline-cmd:
+    dir: src
+    cmds:
+      - cargo run -- -H Pistonite -L MIT **/*.rs
+
+  fix:
+    - cargo run -- -f
+    - task: cargo:fmt-fix
+    - task: check
