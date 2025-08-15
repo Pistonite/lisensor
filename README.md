@@ -5,12 +5,11 @@
 ![Issue Badge](https://img.shields.io/github/issues/Pistonite/lisensor)
 
 Lisensor (pronounced *licenser*) is a tool that automatically adds a
-license notice to your source file, like this for MIT license:
+license notice to your source file, like this:
 
 ```
 // SPDX-License-Identifier: [License]
 // Copyright (c) [Year] [Holder]
-
 ```
 
 See https://spdx.dev/learn/handling-license-info/ for more information
