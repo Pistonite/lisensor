@@ -1,6 +1,10 @@
 # lisensor
 
-Lisensor (Pronounced *licenser*) is a tool that automatically adds a
+![Build Badge](https://img.shields.io/github/check-runs/Pistonite/lisensor/main)
+![License Badge](https://img.shields.io/github/license/Pistonite/lisensor)
+![Issue Badge](https://img.shields.io/github/issues/Pistonite/lisensor)
+
+Lisensor (pronounced *licenser*) is a tool that automatically adds a
 license notice to your source file, like this for MIT license:
 
 ```
