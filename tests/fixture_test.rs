@@ -129,3 +129,4 @@ run_fixture!(wrong_year);
 run_fixture!(wrong_year_future);
 run_fixture!(wrong_year_future_range);
 run_fixture!(wrong_year_range);
+run_fixture!(first_not_sentinel);

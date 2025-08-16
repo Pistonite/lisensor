@@ -89,6 +89,32 @@ if a file is covered by conflicting configs. This prevents "fake" successful
 fixes. However, the fix mode might still edit the file according to one
 of the configs specified (arbitrarily chosen) before reporting the error.
 
+## Compatibility with Other License Notices
+It's common if some file is taken from another project, you must include
+a license notice if it's not already in the file. In this case,
+it's recommended to use a sentinel line (see Format Behavior Details below)
+to prevent the tool from accidentally overriding the original notice.
+
+```
+// See original license notices below:
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Other people
+// 
+// ^ This is bad because running the tool will now
+//   change the holder and license into you, even though what you want
+//   is to add another notice on top of it
+```
+
+Adding a sentinel line will fix this:
+```
+// See original license notices below:
+// * * * * *
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Other people
+// 
+// ^ Now the tool will ignore everything after * * * * *
+```
+
 ## Format Behavior Details
 The tool will check and ensure the following conditions are true for a file:
 
