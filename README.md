@@ -96,7 +96,8 @@ it's recommended to use a sentinel line (see Format Behavior Details below)
 to prevent the tool from accidentally overriding the original notice.
 
 ```
-// See original license notices below:
+// This file was taken from Foobar project, see original license notices below
+// 
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Other people
 // 
@@ -105,10 +106,37 @@ to prevent the tool from accidentally overriding the original notice.
 //   is to add another notice on top of it
 ```
 
+Running the tool will change it to:
+```
+// SPDX-License-Identifier: Your License
+// Copyright (c) 2025 You
+
+// This file was taken from Foobar project, see original license notices below
+// 
+// 
+// ^ This is bad because running the tool will now
+//   change the holder and license into you, even though what you want
+//   is to add another notice on top of it
+```
+
 Adding a sentinel line will fix this:
 ```
-// See original license notices below:
 // * * * * *
+// This file was taken from Foobar project, see original license notices below
+// 
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Other people
+// 
+// ^ Now the tool will ignore everything after * * * * *
+```
+
+Now a new notice will be added
+```
+// SPDX-License-Identifier: Your License
+// Copyright (c) 2025 You
+// * * * * *
+// This file was taken from Foobar project, see original license notices below
+// 
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Other people
 // 
@@ -153,10 +181,10 @@ for `Foobar contributors`, but will not touch anything below the sentinel line.
 Other:
 
 - Line ending:
-  - When checking, any line ending is accepted. When fixing, it will turn the file
-    into UNIX line ending.
-  - When checking, only the first 2 lines are checked, the rest of the file
-    is ignored.
-  - When fixing, if the third line is not a sentinel line or empty line,
-    it will ensure there's an empty line between the license notice and the
-    rest of the content.
+  - When checking, any line ending is accepted. 
+  - When fixing, it will turn the file into UNIX line ending.
+- When checking, only the first 2 lines are checked, the rest of the file
+  is ignored.
+- When fixing, if the third line is not a sentinel line or empty line,
+  it will ensure there's an empty line between the license notice and the
+  rest of the content.
