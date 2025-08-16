@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: TestLicense
+// Copyright (c) 2010-2016 TestHolder
+
+fn main() {
+}

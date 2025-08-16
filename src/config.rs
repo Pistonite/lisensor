@@ -8,49 +8,19 @@ use std::sync::Arc;
 
 use cu::pre::*;
 
-/// Convert the CLI args into configuration object
-pub fn load_config(args: &mut crate::Cli) -> cu::Result<Config> {
-    match (args.holder.take(), args.license.take()) {
-        (Some(holder), Some(license)) => {
-            if let Some(config_path) = find_config_path() {
-                cu::bail!(
-                    "--holder or --license cannot be specified when {config_path} is present in the current directory"
-                );
-            }
-            Ok(Config::inline(
-                holder,
-                license,
-                std::mem::take(&mut args.paths),
-            ))
-        }
-        // clap ensures both are None
-        _ => {
-            let mut iter = std::mem::take(&mut args.paths).into_iter();
-            let mut config = match iter.next() {
-                None => {
-                    let Some(config_path) = find_config_path() else {
-                        cu::bail!(
-                            "cannot find Lisensor.toml, and no config files are specified on the command line."
-                        );
-                    };
-                    Config::build(config_path)?
-                }
-                Some(first) => Config::build(&first)?,
-            };
-
-            for path in iter {
-                config.absorb(Config::build(&path)?)?;
-            }
-
-            Ok(config)
-        }
-    }
-}
-
-fn find_config_path() -> Option<&'static str> {
+/// Try finding the default config files according to the order
+/// specified in the documentation (see repo README)
+pub fn try_find_default_config_file() -> Option<&'static str> {
     ["Lisensor.toml", "lisensor.toml"]
         .into_iter()
         .find(|x| Path::new(x).exists())
+}
+
+/// Config object
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Config {
+    // glob -> (holder, license)
+    globs: BTreeMap<String, (Arc<String>, Arc<String>)>,
 }
 
 /// Raw config read from a toml config file.
@@ -59,13 +29,10 @@ fn find_config_path() -> Option<&'static str> {
 #[derive(Deserialize)]
 struct TomlConfig(BTreeMap<String, BTreeMap<String, String>>);
 
-/// Config object
-pub struct Config {
-    // glob -> (holder, license)
-    globs: BTreeMap<String, (Arc<String>, Arc<String>)>,
-}
 impl Config {
-    pub fn inline(holder: String, license: String, glob_list: Vec<String>) -> Self {
+    /// Create a config object from a single holder and license,
+    /// with multiple glob patterns.
+    pub fn new(holder: String, license: String, glob_list: Vec<String>) -> Self {
         let holder = Arc::new(holder);
         let license = Arc::new(license);
         let mut globs = BTreeMap::new();
@@ -83,7 +50,11 @@ impl Config {
         }
         Self { globs }
     }
-    /// Build the config from a path, error if conflicts are detected
+
+    /// Build the config by reading the file specified, error if conflicts are detected
+    ///
+    /// The globs specified in the config file are relative to the parent directory
+    /// of `path`.
     pub fn build(path: &str) -> cu::Result<Self> {
         let raw = toml::parse::<TomlConfig>(&cu::fs::read_string(path)?)?;
         let parent = Path::new(path)
@@ -155,7 +126,10 @@ impl Config {
 
 impl Config {
     /// Iterate the resolve paths as (path, holder, license)
+    #[allow(clippy::should_implement_trait)]
     pub fn into_iter(self) -> impl Iterator<Item = (String, Arc<String>, Arc<String>)> {
+        // we can't implement the IntoIterator trait because
+        // the map object has an unnamed function type
         self.globs
             .into_iter()
             .map(|(path, (holder, license))| (path, holder, license))

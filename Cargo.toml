@@ -1,6 +1,6 @@
 [package]
 name = "lisensor"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Tool to automatically add, check, and fix license notices in the source files"
 license = "MIT"
@@ -22,8 +22,12 @@ serde = "1"
 [dependencies.cu]
 package = "pistonite-cu"
 version = "0.4.0"
-features = ["cli", "fs", "coroutine-heavy", "toml"]
+features = ["print", "fs", "coroutine-heavy", "toml"]
 # path = "../cu/packages/copper"
+
+[features]
+default = ["cli"]
+cli = ["cu/cli"]
 
 [package.metadata.binstall.signing]
 algorithm = "minisign"

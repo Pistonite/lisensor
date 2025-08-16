@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: TestLicense
+// Copyright (c) 2025 TestHolder
+// * * * * * sentinel is first line
+// SPDX-License-Identifier: TestLicense
+// SPDX-License-Identifier: TestLicense
+// Copyright (c) 2020 TestHolder
+// Copyright (c) 2020 TestHolder
+fn main() {
+}
