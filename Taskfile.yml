@@ -11,6 +11,9 @@ tasks:
     - rm -rf mono-dev
     - git clone https://github.com/Pistonight/mono-dev --depth 1
 
+  build-lib:
+    - cargo build --no-default-features
+
   check:
     - task: cargo:clippy-all
     - task: cargo:fmt-check
@@ -19,6 +22,9 @@ tasks:
   test:
     - cargo test
     - task: test-inline-cmd
+
+  test-fixt:
+    - cargo test --test fixture_test
 
   test-inline-cmd:
     dir: src
@@ -29,3 +35,8 @@ tasks:
     - cargo run -- -f
     - task: cargo:fmt-fix
     - task: check
+
+  clean:
+    - cargo clean
+    - rm -f tests/fixtures/*.txt_out
+    - rustup update

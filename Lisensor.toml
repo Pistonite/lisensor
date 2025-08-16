@@ -1,2 +1,3 @@
 [Pistonite]
-"src/**/*.rs" = "MIT"
+"src/**/*" = "MIT"
+"tests/**/*.rs" = "MIT"

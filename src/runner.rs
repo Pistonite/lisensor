@@ -5,12 +5,30 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::format;
+use crate::{Config, format};
 
-pub async fn run<I>(iter: I, fix: bool) -> cu::Result<()>
-where
-    I: IntoIterator<Item = (String, Arc<String>, Arc<String>)>,
-{
+/// Issues found
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Failure {
+    pub errors: Vec<String>,
+}
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for e in &self.errors {
+            e.fmt(f)?;
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+/// Run the tool for the given config.
+///
+/// - `Ok(Ok(())` means successful.
+/// - `Ok(Err(failure))` means the run was successful, but issues are found.
+/// - `Err(e)` means the run itself was not successful.
+pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
     let bar = cu::progress_unbounded_lowp(if fix {
         "fixing files"
     } else {
@@ -24,7 +42,7 @@ where
 
     // avoid opening too many files. max open 1024 files
     let pool = cu::co::pool(1024);
-    for (glob, holder, license) in iter.into_iter() {
+    for (glob, holder, license) in config.into_iter() {
         let result = run_glob(
             &glob,
             holder,
@@ -64,30 +82,30 @@ where
     }
 
     let mut count = 0;
-    let mut failed = 0;
+    let mut errors = vec![];
     while let Some(result) = set.next().await {
         // join error
-        let (path, ok) = result?;
+        let (path, result) = result?;
         // handle check error
-        if !ok {
-            failed += 1;
+        if let Err(e) = result {
+            errors.push(e)
         }
         count += 1;
         cu::progress!(&bar, count, "{}", path.display());
     }
 
-    if failed != 0 {
+    if !errors.is_empty() {
+        let failed = errors.len();
         cu::error!("checked {total} files, found {failed} issue(s).");
         cu::hint!("run with --fix to fix them automatically.");
-        if fix {
-            cu::bail!("some issues could not be fixed automatically.");
-        } else {
-            cu::bail!("license check unsuccesful.");
-        }
+
+        let errors = errors.into_iter().map(|x| x.to_string()).collect();
+
+        return Ok(Err(Failure { errors }));
     }
 
     cu::info!("license check successful for {total} files.");
-    Ok(())
+    Ok(Ok(()))
 }
 
 fn run_glob(
@@ -96,13 +114,16 @@ fn run_glob(
     license: Arc<String>,
     fix: bool,
     pool: &cu::co::Pool,
-    handles: &mut Vec<cu::co::Handle<(PathBuf, bool)>>,
+    handles: &mut Vec<cu::co::Handle<(PathBuf, cu::Result<()>)>>,
     path_map: &mut BTreeMap<PathBuf, (Arc<String>, Arc<String>)>,
 ) -> cu::Result<bool> {
     let mut matched = false;
     for path in cu::fs::glob(glob)? {
-        matched = true;
         let path = path?;
+        if !path.is_file() {
+            continue;
+        }
+        matched = true;
         let holder = Arc::clone(&holder);
         let license = Arc::clone(&license);
 
@@ -138,23 +159,23 @@ fn run_glob(
             pool.spawn(async move {
                 let check_result = format::check_file(&path, &holder, &license);
                 let Err(e) = check_result else {
-                    return (path, true);
+                    return (path, Ok(()));
                 };
                 cu::trace!("'{}': {e}", path.display());
                 cu::debug!("fixing '{}'", path.display());
                 let Err(e) = format::fix_file(&path, &holder, &license) else {
-                    return (path, true);
+                    return (path, Ok(()));
                 };
                 cu::error!("failed to fix '{}': {e}", path.display());
-                (path, false)
+                (path, Err(e))
             })
         } else {
             pool.spawn(async move {
                 let Err(e) = format::check_file(&path, &holder, &license) else {
-                    return (path, true);
+                    return (path, Ok(()));
                 };
                 cu::warn!("'{}': {e}", path.display());
-                (path, false)
+                (path, Err(e))
             })
         };
 

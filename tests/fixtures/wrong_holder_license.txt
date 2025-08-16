@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: NotTestLicense
+// Copyright (c) 2025 NotTestHolder
+// * * * * *
+// SPDX-License-Identifier: NotTestLicense
+// Copyright (c) 2025 NotTestHolder
+fn main() {}
