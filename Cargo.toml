@@ -10,6 +10,7 @@ keywords = ["license", "copyright", "header", "notice", "cli"]
 categories = ["development-tools", "development-tools::build-utils"]
 exclude = [
     ".github/**/*",
+    "tests/**/*",
     "Taskfile.yml",
     "Lisensor.toml",
 ]
