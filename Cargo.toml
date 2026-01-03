@@ -1,6 +1,6 @@
 [package]
 name = "lisensor"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Tool to automatically add, check, and fix license notices in the source files"
 license = "MIT"
@@ -17,12 +17,12 @@ exclude = [
 
 
 [dependencies]
-chrono = "0.4.41"
+chrono = "0.4.42"
 serde = "1"
 
 [dependencies.cu]
 package = "pistonite-cu"
-version = "0.4.0"
+version = "0.6.8"
 features = ["print", "fs", "coroutine-heavy", "toml"]
 # path = "../cu/packages/copper"
 

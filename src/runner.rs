@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Pistonite
+// Copyright (c) 2025-2026 Pistonite
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
