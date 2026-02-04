@@ -29,11 +29,14 @@ impl std::fmt::Display for Failure {
 /// - `Ok(Err(failure))` means the run was successful, but issues are found.
 /// - `Err(e)` means the run itself was not successful.
 pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
-    let bar = cu::progress_unbounded_lowp(if fix {
+    let bar = cu::progress(if fix {
         "fixing files"
     } else {
         "processing files"
-    });
+    })
+    .keep(false)
+    .total(0)
+    .spawn();
 
     let mut path_map = BTreeMap::new();
     let mut handles = Vec::new();
@@ -66,7 +69,7 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
     // put handles into a set to be auto aborted
     // with error handling below
     let total = handles.len();
-    bar.set_total(total);
+    bar.set_total(total as u64);
     let mut set = cu::co::set(handles);
 
     // handle glob errors first
@@ -81,7 +84,6 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
         cu::bail!("error while searching for files");
     }
 
-    let mut count = 0;
     let mut errors = vec![];
     while let Some(result) = set.next().await {
         // join error
@@ -90,8 +92,7 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
         if let Err(e) = result {
             errors.push(e)
         }
-        count += 1;
-        cu::progress!(&bar, count, "{}", path.display());
+        cu::progress!(bar += 1, "{}", path.display());
     }
 
     if !errors.is_empty() {
