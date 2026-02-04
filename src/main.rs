@@ -10,9 +10,9 @@ async fn main(mut args: Cli) -> cu::Result<()> {
 
     if result.is_err() {
         if fix {
-            cu::bailfyi!("some issues could not be fixed automatically.");
+            cu::bail!("some issues could not be fixed automatically.");
         } else {
-            cu::bailfyi!("license check unsuccesful.");
+            cu::bail!("license check unsuccesful.");
         }
     }
 

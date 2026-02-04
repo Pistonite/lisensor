@@ -6,7 +6,7 @@ use std::path::Path;
 use lisensor::{Config, run};
 
 pub fn run_fixture(name: &str) -> cu::Result<()> {
-    cu::init_print_options(cu::lv::Color::Never, cu::lv::Print::QuietQuiet, None);
+    cu::cli::level("qq");
     let update_output = std::env::var("FIXTURE_UPDATE").unwrap_or_default().as_str() == "1";
 
     let fixtures = Path::new("tests").join("fixtures");

@@ -7,6 +7,8 @@ use std::sync::LazyLock;
 
 use cu::pre::*;
 
+const DEFAULT_YEAR: u32 = 2025; // The year this tool is made
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
     /// The `// ...` format
@@ -64,21 +66,23 @@ impl Format {
         year_start: u32,
         holder: &str,
         license: &str,
+        is_crlf: bool,
         buf: &mut String,
     ) -> cu::Result<()> {
         use std::fmt::Write as _;
         let year_end = current_year();
+        let le = if is_crlf { "\r\n" } else { "\n" };
         match self {
             Self::SlashSlash => {
                 if year_start == year_end {
                     write!(
                         buf,
-                        "// SPDX-License-Identifier: {license}\n// Copyright (c) {year_start} {holder}\n"
+                        "// SPDX-License-Identifier: {license}{le}// Copyright (c) {year_start} {holder}{le}"
                     )?;
                 } else {
                     write!(
                         buf,
-                        "// SPDX-License-Identifier: {license}\n// Copyright (c) {year_start}-{year_end} {holder}\n"
+                        "// SPDX-License-Identifier: {license}{le}// Copyright (c) {year_start}-{year_end} {holder}{le}"
                     )?;
                 }
             }
@@ -86,12 +90,12 @@ impl Format {
                 if year_start == year_end {
                     write!(
                         buf,
-                        "# SPDX-License-Identifier: {license}\n# Copyright (c) {year_start} {holder}\n"
+                        "# SPDX-License-Identifier: {license}{le}# Copyright (c) {year_start} {holder}{le}"
                     )?;
                 } else {
                     write!(
                         buf,
-                        "# SPDX-License-Identifier: {license}\n# Copyright (c) {year_start}-{year_end} {holder}\n"
+                        "# SPDX-License-Identifier: {license}{le}# Copyright (c) {year_start}-{year_end} {holder}{le}"
                     )?;
                 }
             }
@@ -134,26 +138,31 @@ pub fn check_file(path: &Path, expected_holder: &str, expected_license: &str) ->
 
 pub fn fix_file(path: &Path, expected_holder: &str, expected_license: &str) -> cu::Result<()> {
     let format = Format::from_path(path);
-    let reader = cu::fs::reader(path)?;
-    let lines = reader.lines();
+    let file_content = cu::fs::read_string(path)?;
+    let lines = file_content.lines();
     let mut buf = FixBuf::default();
+    // usually this should only go through the first line
+    // unless the file is unconventional
+    if file_content.contains("\r\n") {
+        cu::debug!("will use CRLF for file '{}'", path.display());
+        buf.set_crlf(true);
+    }
 
     let mut found_license_line = false;
     let mut found_copyright_line = false;
     let mut found_sentinel = false;
 
     for line in lines {
-        let line = cu::check!(line, "error while reading file '{}'", path.display())?;
         if found_sentinel {
-            buf.push_line(&line, format);
+            buf.push_line(line, format);
             continue;
         }
-        if format.starts_with_sentinel(&line) {
+        if format.starts_with_sentinel(line) {
             found_sentinel = true;
-            buf.push_line(&line, format);
+            buf.push_line(line, format);
             continue;
         }
-        if format.check_strip_license_line(&line).is_some() {
+        if format.check_strip_license_line(line).is_some() {
             if found_license_line {
                 cu::bail!(
                     "multiple license line found! Consider adding a sentinel line if there are other license notices that need to be kept!"
@@ -162,7 +171,7 @@ pub fn fix_file(path: &Path, expected_holder: &str, expected_license: &str) -> c
             found_license_line = true;
             continue;
         }
-        if let Some(copyright_info) = format.check_strip_copyright_line(&line) {
+        if let Some(copyright_info) = format.check_strip_copyright_line(line) {
             if found_copyright_line {
                 cu::bail!(
                     "multiple copyright line found! Consider adding a sentinel line if there are other license notices that need to be kept!"
@@ -176,7 +185,7 @@ pub fn fix_file(path: &Path, expected_holder: &str, expected_license: &str) -> c
             buf.perform_fix_if_need(format, year_start, expected_holder, expected_license)?;
             continue;
         }
-        buf.push_line(&line, format);
+        buf.push_line(line, format);
     }
     // format new notice if didn't find one
     buf.perform_fix_if_need(format, current_year(), expected_holder, expected_license)?;
@@ -188,25 +197,30 @@ pub fn fix_file(path: &Path, expected_holder: &str, expected_license: &str) -> c
 #[derive(Default)]
 struct FixBuf {
     buf: String,
+    is_crlf: bool,
     fixed: bool,
     fixed_when_empty: bool,
 }
 impl FixBuf {
+    pub fn set_crlf(&mut self, crlf: bool) {
+        self.is_crlf = crlf;
+    }
     fn push_line(&mut self, line: &str, format: Format) {
+        let le_byte_len = if self.is_crlf { 2 } else { 1 };
         if self.fixed_when_empty {
             if !format.starts_with_sentinel(line) && !line.is_empty() {
-                self.buf.reserve(line.len() + 2);
-                self.buf.push('\n');
+                self.buf.reserve(line.len() + le_byte_len * 2);
+                self.push_line_ending();
             } else {
-                self.buf.reserve(line.len() + 1);
+                self.buf.reserve(line.len() + le_byte_len);
             }
             self.fixed_when_empty = false;
         } else {
-            self.buf.reserve(line.len() + 1);
+            self.buf.reserve(line.len() + le_byte_len);
         }
 
         self.buf.push_str(line);
-        self.buf.push('\n');
+        self.push_line_ending();
     }
     fn perform_fix_if_need(
         &mut self,
@@ -219,12 +233,12 @@ impl FixBuf {
             return Ok(());
         }
         let current_content = std::mem::take(&mut self.buf);
-        format.format(year_start, holder, license, &mut self.buf)?;
+        format.format(year_start, holder, license, self.is_crlf, &mut self.buf)?;
         // add an empty line if needed
         if !current_content.is_empty() {
             if !format.starts_with_sentinel(&current_content) && !current_content.starts_with('\n')
             {
-                self.buf.push('\n');
+                self.push_line_ending();
             }
         } else {
             self.fixed_when_empty = true;
@@ -233,18 +247,25 @@ impl FixBuf {
         self.fixed = true;
         Ok(())
     }
+    fn push_line_ending(&mut self) {
+        if self.is_crlf {
+            self.buf.push_str("\r\n");
+        } else {
+            self.buf.push('\n');
+        }
+    }
 }
 
 fn parse_copyright_info(info: &str) -> (u32, u32, &str) {
     let mut parts = info.splitn(2, ' ');
     let (year_start, year_end) = match parts.next() {
-        None => (2025, 2025),
+        None => (DEFAULT_YEAR, DEFAULT_YEAR),
         Some(x) => {
             let mut parts = x.splitn(2, '-');
             let year_start = parts
                 .next()
                 .and_then(|x| cu::parse::<u32>(x).ok())
-                .unwrap_or(2025);
+                .unwrap_or(DEFAULT_YEAR);
             let year_end = parts
                 .next()
                 .and_then(|x| cu::parse::<u32>(x).ok())
@@ -259,7 +280,7 @@ fn parse_copyright_info(info: &str) -> (u32, u32, &str) {
 fn current_year() -> u32 {
     if cfg!(test) {
         // mock current year in tests
-        return 2025;
+        return DEFAULT_YEAR;
     }
     static YEAR: LazyLock<u32> = LazyLock::new(|| {
         use chrono::Datelike;

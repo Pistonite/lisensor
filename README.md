@@ -24,7 +24,8 @@ about this format.
 
 For languages such as python, the comment style will automatically
 be changed to `#` instead of `//`. Languages that do not have
-either of the comment styles are currently not supported. (Feel free to PR).
+either of the comment styles are currently not supported.
+(Feel free to PR, it will need to be added to `src/format.rs`).
 
 ## Usage
 
@@ -181,8 +182,9 @@ for `Foobar contributors`, but will not touch anything below the sentinel line.
 Other:
 
 - Line ending:
-  - When checking, any line ending is accepted. 
-  - When fixing, it will turn the file into UNIX line ending.
+  - When checking, any line ending is accepted (including mixed)
+  - When fixing, it will turn the file into UNIX line ending unless
+    the byte sequence `b"\r\n"` (CRLF) is found anywhere in the file
 - When checking, only the first 2 lines are checked, the rest of the file
   is ignored.
 - When fixing, if the third line is not a sentinel line or empty line,
