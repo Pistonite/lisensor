@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 Pistonite
 
-use std::path::Path;
-
 use lisensor::{Config, run};
 
 pub fn run_fixture(name: &str) -> cu::Result<()> {
-    cu::cli::level("qq");
+    // cu::cli::level("qq");
     let update_output = std::env::var("FIXTURE_UPDATE").unwrap_or_default().as_str() == "1";
 
-    let fixtures = Path::new("tests").join("fixtures");
+    let fixtures = cu::path!("tests" / "fixtures");
     let input_path = fixtures.join(name);
 
     cu::debug!("running fixture: {name}");
@@ -18,9 +16,10 @@ pub fn run_fixture(name: &str) -> cu::Result<()> {
     std::fs::copy(&input_path, &input_copy_path)?;
 
     let config = Config::new(
+        fixtures.clone(),
         "TestHolder".to_string(),
         "TestLicense".to_string(),
-        vec![input_copy_path.to_string_lossy().into_owned()],
+        vec![format!("{name}_out")],
     );
     let config2 = config.clone();
 

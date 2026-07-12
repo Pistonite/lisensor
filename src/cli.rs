@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 Pistonite
 
+use std::path::Path;
+
 use cu::pre::*;
 
 use crate::Config;
@@ -18,11 +20,17 @@ pub struct Cli {
     #[clap(short = 'L', long, requires("holder"))]
     pub license: Option<String>,
 
+    /// Do not attempt discovering config file
+    #[clap(long, requires("holder"))]
+    pub no_config: bool,
+
     #[clap(flatten)]
     pub common: cu::cli::Flags,
 
     /// Paths to config files, or in inline config mode, glob patterns for source files
     /// to apply the license notice.
+    ///
+    /// In inline config mode, the glob patterns are relative to the current working directory
     pub paths: Vec<String>,
 }
 
@@ -30,12 +38,20 @@ pub struct Cli {
 pub fn config_from_cli(args: &mut crate::Cli) -> cu::Result<Config> {
     match (args.holder.take(), args.license.take()) {
         (Some(holder), Some(license)) => {
-            if let Some(config_path) = crate::try_find_default_config_file() {
-                cu::bail!(
-                    "--holder or --license cannot be specified when {config_path} is present in the current directory"
-                );
+            if !args.no_config {
+                if let Some(config_path) = crate::try_find_default_config_file() {
+                    cu::error!(
+                        "--holder or --license cannot be specified when config file is present: '{}'",
+                        config_path.display()
+                    );
+                    cu::hint!(
+                        "this error exists to prevent accidental misuse; use --no-config to skip discovering config file if intended"
+                    );
+                    cu::bail!("invalid command line usage");
+                }
             }
             Ok(Config::new(
+                std::env::current_dir()?,
                 holder,
                 license,
                 std::mem::take(&mut args.paths),
@@ -48,16 +64,16 @@ pub fn config_from_cli(args: &mut crate::Cli) -> cu::Result<Config> {
                 None => {
                     let Some(config_path) = crate::try_find_default_config_file() else {
                         cu::bail!(
-                            "cannot find Lisensor.toml, and no config files are specified on the command line."
+                            "cannot find config file, and no config files are specified on the command line."
                         );
                     };
-                    Config::build(config_path)?
+                    Config::build(&config_path)?
                 }
-                Some(first) => Config::build(&first)?,
+                Some(first) => Config::build(Path::new(&first))?,
             };
 
             for path in iter {
-                config.absorb(Config::build(&path)?)?;
+                config.absorb(Config::build(Path::new(&path))?)?;
             }
 
             Ok(config)

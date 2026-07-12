@@ -3,23 +3,45 @@
 
 use std::collections::BTreeMap;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use cu::pre::*;
 
+static CONFIG_NAMES: &[&str] = &["Lisensor.toml", "lisensor.toml"];
+
 /// Try finding the default config files according to the order
 /// specified in the documentation (see repo README)
-pub fn try_find_default_config_file() -> Option<&'static str> {
-    ["Lisensor.toml", "lisensor.toml"]
-        .into_iter()
-        .find(|x| Path::new(x).exists())
+pub fn try_find_default_config_file() -> Option<PathBuf> {
+    for x in CONFIG_NAMES {
+        if Path::new(x).exists() {
+            cu::debug!("found config {x} in current directory");
+            return Some(PathBuf::from(x));
+        }
+    }
+    cu::debug!("discovering config in parent directories");
+    let mut curr = Path::new(".").normalize().ok()?;
+    loop {
+        curr = curr.parent_abs().ok()?;
+        cu::debug!("looking for config in '{}'", curr.display());
+        let mut p = curr.clone();
+        for x in CONFIG_NAMES {
+            p.push(x);
+            if p.exists() {
+                cu::debug!("found config '{}'", p.display());
+                return Some(p);
+            }
+            p.pop();
+        }
+    }
 }
 
 /// Config object
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Config {
-    // glob -> (holder, license)
+    /// the root directory to run the program
+    root: PathBuf,
+    /// glob -> (holder, license)
     globs: BTreeMap<String, (Arc<String>, Arc<String>)>,
 }
 
@@ -32,7 +54,7 @@ struct TomlConfig(BTreeMap<String, BTreeMap<String, String>>);
 impl Config {
     /// Create a config object from a single holder and license,
     /// with multiple glob patterns.
-    pub fn new(holder: String, license: String, glob_list: Vec<String>) -> Self {
+    pub fn new(root: PathBuf, holder: String, license: String, glob_list: Vec<String>) -> Self {
         let holder = Arc::new(holder);
         let license = Arc::new(license);
         let mut globs = BTreeMap::new();
@@ -48,25 +70,22 @@ impl Config {
                 }
             }
         }
-        Self { globs }
+        Self { root, globs }
     }
 
     /// Build the config by reading the file specified, error if conflicts are detected
     ///
     /// The globs specified in the config file are relative to the parent directory
-    /// of `path`.
-    pub fn build(path: &str) -> cu::Result<Self> {
-        let raw = toml::parse::<TomlConfig>(&cu::fs::read_string(path)?)?;
-        let parent = Path::new(path)
-            .parent()
+    /// of `config_path`.
+    pub fn build(config_path: &Path) -> cu::Result<Self> {
+        let raw = toml::parse::<TomlConfig>(&cu::fs::read_string(config_path)?)?;
+        let root = config_path
+            .parent_abs()
             .context("failed to get parent path for config")?;
         let mut globs = BTreeMap::new();
         for (holder, table) in raw.0 {
             let holder = Arc::new(holder);
             for (glob, license) in table {
-                // globs in config files are resolved relative
-                // to the directory where the config file is in
-                let glob = parent.join(glob).into_utf8()?;
                 use std::collections::btree_map::Entry;
                 match globs.entry(glob) {
                     Entry::Vacant(entry) => {
@@ -76,7 +95,10 @@ impl Config {
                         let glob = entry.key();
                         let (curr_holder, curr_license) = entry.get();
                         if *curr_holder == holder && curr_license.deref() == license.as_str() {
-                            cu::warn!("glob '{glob}' specified multiple times in '{path}'!");
+                            cu::warn!(
+                                "glob '{glob}' specified multiple times in '{}'!",
+                                config_path.display()
+                            );
                             continue;
                         }
                         cu::error!("conflicting config specified for glob '{glob}':");
@@ -91,7 +113,10 @@ impl Config {
                 }
             }
         }
-        Ok(Self { globs })
+        Ok(Self {
+            root: root.to_path_buf(),
+            globs,
+        })
     }
 
     /// Merge another config into self, error if conflicts are detected
@@ -124,14 +149,39 @@ impl Config {
     }
 }
 
-impl Config {
-    /// Iterate the resolve paths as (path, holder, license)
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> impl Iterator<Item = (String, Arc<String>, Arc<String>)> {
-        // we can't implement the IntoIterator trait because
-        // the map object has an unnamed function type
-        self.globs
-            .into_iter()
-            .map(|(path, (holder, license))| (path, holder, license))
+impl IntoIterator for Config {
+    type Item = ConfigEntry;
+    type IntoIter = ConfigIntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        ConfigIntoIter {
+            root: Arc::new(self.root),
+            globs_iter: self.globs.into_iter(),
+        }
     }
+}
+
+pub struct ConfigIntoIter {
+    root: Arc<PathBuf>,
+    globs_iter: std::collections::btree_map::IntoIter<String, (Arc<String>, Arc<String>)>,
+}
+
+impl Iterator for ConfigIntoIter {
+    type Item = ConfigEntry;
+    fn next(&mut self) -> Option<Self::Item> {
+        let (glob, (holder, license)) = self.globs_iter.next()?;
+        Some(ConfigEntry {
+            root: Arc::clone(&self.root),
+            glob,
+            holder,
+            license,
+        })
+    }
+}
+
+/// Config for one file
+pub struct ConfigEntry {
+    pub root: Arc<PathBuf>,
+    pub glob: String,
+    pub holder: Arc<String>,
+    pub license: Arc<String>,
 }
