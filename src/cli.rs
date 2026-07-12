@@ -27,6 +27,9 @@ pub struct Cli {
     #[clap(flatten)]
     pub common: cu::cli::Flags,
 
+    #[clap(short = 'V', long)]
+    pub version: bool,
+
     /// Paths to config files, or in inline config mode, glob patterns for source files
     /// to apply the license notice.
     ///

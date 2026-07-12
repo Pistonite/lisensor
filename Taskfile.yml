@@ -39,3 +39,12 @@ tasks:
     - cargo clean
     - rm -f tests/fixtures/*.txt_out
     - rustup update
+
+  publish:
+    vars:
+      VERSION:
+        sh: cargo run -- --version | tr -d 'lisensor '
+    cmds:
+      - git tag 'v{{.VERSION}}'
+      - git push origin 'v{{.VERSION}}'
+      - cargo publish
