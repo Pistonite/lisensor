@@ -42,7 +42,8 @@ used by tests in the project, but might be helpful for integrating `lisensor` in
 
 ## Config
 By default, `lisensor` looks for `Lisensor.toml` then `lisensor.toml`
-in the current directory if no config files are specified.
+in the current directory if no config files are specified. If not found
+then it tries to search the parent directories until one is found.
 
 Globs in the config file are relative to the directory containing
 the config file, meaning running `lisensor` from anywhere will result

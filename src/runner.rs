@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::{Config, format};
+use crate::{Config, ConfigEntry, format};
 
 /// Issues found
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -45,16 +45,14 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
 
     // avoid opening too many files. max open 1024 files
     let pool = cu::co::pool(1024);
-    for (glob, holder, license) in config.into_iter() {
-        let result = run_glob(
-            &glob,
-            holder,
-            license,
-            fix,
-            &pool,
-            &mut handles,
-            &mut path_map,
+    for entry in config {
+        let glob = entry.glob.clone();
+        cu::debug!(
+            "running glob '{glob}', holder={:?}, license={:?}",
+            entry.holder,
+            entry.license
         );
+        let result = run_glob_config(entry, fix, &pool, &mut handles, &mut path_map);
         match result {
             Ok(matched) => {
                 if !matched {
@@ -75,7 +73,7 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
     // handle glob errors first
     if !glob_errors.is_empty() {
         for (glob, error) in &glob_errors {
-            cu::error!("while globbing '{glob}': {error}");
+            cu::error!("while globbing '{glob}': {error:?}");
         }
         cu::error!(
             "got {} errors while searching for files, see above",
@@ -95,6 +93,13 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
         cu::progress!(bar += 1, "{}", path.display());
     }
 
+    if total == 0 {
+        cu::bail!("input did not match any files");
+    }
+    for x in no_match_glob {
+        cu::warn!("glob '{x}' did not match any files!");
+    }
+
     if !errors.is_empty() {
         let failed = errors.len();
         cu::error!("checked {total} files, found {failed} issue(s).");
@@ -109,24 +114,26 @@ pub async fn run(config: Config, fix: bool) -> cu::Result<Result<(), Failure>> {
     Ok(Ok(()))
 }
 
-fn run_glob(
-    glob: &str,
-    holder: Arc<String>,
-    license: Arc<String>,
+fn run_glob_config(
+    config: ConfigEntry,
     fix: bool,
     pool: &cu::co::Pool,
     handles: &mut Vec<cu::co::Handle<(PathBuf, cu::Result<()>)>>,
     path_map: &mut BTreeMap<PathBuf, (Arc<String>, Arc<String>)>,
 ) -> cu::Result<bool> {
     let mut matched = false;
-    for path in cu::fs::glob(glob)? {
-        let path = path?;
-        if !path.is_file() {
+    let mut walker = cu::fs::walker(&*config.root);
+    let glob = &config.glob;
+    walker.git(true).glob_includes([glob])?;
+    for entry in walker.walk()? {
+        let entry = entry?;
+        if !entry.is_file() {
             continue;
         }
         matched = true;
-        let holder = Arc::clone(&holder);
-        let license = Arc::clone(&license);
+        let holder = Arc::clone(&config.holder);
+        let license = Arc::clone(&config.license);
+        let path = entry.path().to_path_buf();
 
         // in fix mode, run additional check for if there are conflicts
         // in the config. Otherwise, the fix result is arbitrary

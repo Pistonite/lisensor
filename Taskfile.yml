@@ -27,9 +27,8 @@ tasks:
     - cargo test --test fixture_test
 
   test-inline-cmd:
-    dir: src
     cmds:
-      - cargo run -- -H Pistonite -L MIT **/*.rs
+      - cargo run -- -H Pistonite -L MIT './**/*.rs' --no-config
 
   fix:
     - cargo run -- -f
